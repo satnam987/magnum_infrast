@@ -1,0 +1,96 @@
+---
+# Main tasks
+
+- name: Include SSH root configuration tasks
+  include_tasks: ssh_root.yml
+  tags:
+    - ssh_root_setup # Tag toegevoegd voor selectieve uitvoering indien nodig
+
+- name: Include preparation tasks
+  import_tasks: prepare.yml
+  tags: prepare
+
+# Firewall taken vroeg uitvoeren om poorten te openen voor SSL challenge
+- name: Include firewall configuration tasks
+  import_tasks: firewall.yml
+  tags: firewall
+
+- name: Include SSL configuration tasks
+  import_tasks: ssl.yml
+  when: enable_ssl | bool
+  tags: ssl
+
+- name: Include Docker tasks
+  import_tasks: docker.yml
+  tags: docker
+
+- name: Wait for Docker to be ready
+  wait_for:
+    timeout: 10
+  when: ansible_connection != 'local' # Niet per se nodig voor local, maar kan geen kwaad
+
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+  with_items:
+    - "{{ uptime_kuma_data_dir }}"
+    - "{{ uptime_kuma_data_dir }}/data"
+    - "/etc/docker/compose/{{ uptime_kuma_container_name }}"
+
+- name: Configure Docker Compose
+  template:
+    src: docker-compose.yml.j2
+    dest: "/etc/docker/compose/{{ uptime_kuma_container_name }}/docker-compose.yml"
+    mode: "0640"
+  notify: restart uptime-kuma
+
+- name: Create systemd service for Docker Compose
+  template:
+    src: uptime-kuma.service.j2
+    dest: /etc/systemd/system/uptime-kuma.service
+    mode: "0644"
+  notify: reload systemd
+
+- name: Ensure systemd is reloaded
+  systemd:
+    daemon_reload: yes
+
+- name: Start and enable Docker service
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Start and enable Uptime Kuma service
+  systemd:
+    name: uptime-kuma
+    state: started
+    enabled: yes
+
+- name: Wait for Uptime Kuma to be ready
+  uri:
+    url: "http://localhost:{{ uptime_kuma_port }}/dashboard"
+    return_content: yes
+    timeout: 120
+    follow_redirects: yes
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 5
+
+- name: Show installation summary
+  debug:
+    msg:
+      - "Uptime Kuma is succesvol geïnstalleerd!"
+      - "Toegang via: http://{{ ansible_host }}:{{ uptime_kuma_port }}"
+
+- name: Include Fail2Ban configuration tasks
+  include_tasks: fail2ban.yml
+  when: fail2ban_enable
+
+- name: Stop uptime-kuma service if exists
+  ansible.builtin.systemd:
+    name: uptime-kuma
+    state: stopped

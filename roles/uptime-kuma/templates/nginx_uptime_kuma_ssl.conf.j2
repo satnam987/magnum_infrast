@@ -1,0 +1,59 @@
+# {{ ansible_managed }}
+server {
+    listen 80;
+    server_name {{ ssl_domain }};
+    # Redirect alle HTTP naar HTTPS
+    # Deze server block kan gecombineerd worden met de HTTP challenge block of apart zijn.
+    # Als certbot --redirect wordt gebruikt, past het dit mogelijk aan.
+    location /.well-known/acme-challenge/ {
+        root /var/www/html; # Zorg dat deze map bestaat
+        allow all;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name {{ ssl_domain }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ ssl_domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ ssl_domain }}/privkey.pem;
+    # Aanbevolen: include Let's Encrypt's aanbevolen SSL parameters
+    # Deze bestanden worden aangemaakt door Certbot bij de eerste succesvolle run
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Security headers (optioneel maar aanbevolen)
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    # Pas CSP aan indien nodig voor Uptime Kuma functionaliteit
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; object-src 'none'; frame-ancestors 'self'; connect-src 'self' wss:;" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+    location / {
+        proxy_pass http://localhost:{{ uptime_kuma_port }};
+        proxy_set_header Host $host; # Belangrijk!
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https; # Zorg dat Uptime Kuma weet dat het HTTPS is
+        proxy_set_header X-Forwarded-Ssl on; # Alternatieve manier
+
+        # WebSocket support (vereist voor Uptime Kuma)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400; # Voorkom timeouts voor langdurige WebSocket verbindingen
+    }
+
+    # Optioneel: Toegang tot Nginx status voor monitoring (beveilig dit goed!)
+    # location /nginx_status {
+    #    stub_status on;
+    #    access_log off;
+    #    allow 127.0.0.1; # Alleen lokale toegang
+    #    deny all;
+    # }
+} 

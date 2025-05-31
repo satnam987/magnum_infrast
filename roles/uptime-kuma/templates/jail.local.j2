@@ -1,0 +1,76 @@
+[DEFAULT]
+bantime = {{ fail2ban_bantime }}
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+# "backend" specifies the polling method. Available options are "pyinotify",
+# "gamin", "polling" and "systemd".
+# Deze zou automatisch gedetecteerd moeten worden.
+#backend = auto
+
+# Email notificaties (optioneel, vereist MTA configuratie)
+# destemail = your.email@example.com
+# sendername = Fail2Ban
+# mta = sendmail
+
+[sshd]
+enabled = true
+port = ssh
+# Pas aan als je een andere SSH poort gebruikt
+# port = 22
+
+# Hier kunnen andere jails toegevoegd worden voor andere services,
+# bijvoorbeeld voor Nginx als je web-based attacks wilt blokkeren.
+{% if enable_ssl %}
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+port = http,https
+logpath = /var/log/nginx/error.log
+
+[nginx-badbots]
+enabled = true
+filter = nginx-badbots
+port = http,https
+logpath = /var/log/nginx/access.log # Of specifiek error.log als je dat prefereert
+# banaction = nginx-block-ip # Vereist configuratie in Nginx
+
+[nginx-dos]
+enabled = true
+filter = nginx-dos # Een custom filter die je zou moeten definiëren
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 200 # Aantal requests per findtime
+findtime = 120 # Tijdspanne in seconden
+bantime = 3600 # 1 uur
+{% else %}
+# [nginx-http-auth]
+# enabled = true
+# filter = nginx-http-auth
+# port = http,https
+# logpath = /var/log/nginx/error.log
+#
+# [nginx-badbots]
+# enabled = true
+# filter = nginx-badbots
+# port = http,https
+# logpath = /var/log/nginx/access.log # Of specifiek error.log als je dat prefereert
+# # banaction = nginx-block-ip # Vereist configuratie in Nginx
+#
+# [nginx-dos]
+# enabled = true
+# filter = nginx-dos # Een custom filter die je zou moeten definiëren
+# port = http,https
+# logpath = /var/log/nginx/access.log
+# maxretry = 200 # Aantal requests per findtime
+# findtime = 120 # Tijdspanne in seconden
+# bantime = 3600 # 1 uur
+{% endif %}
+
+# Voorbeeld voor Uptime Kuma login pogingen (vereist dat Uptime Kuma failed logins logt op een manier die Fail2Ban kan parsen)
+# [uptime-kuma-login]
+# enabled = false # Zet op true als je een filter hebt en Uptime Kuma dit logt
+# filter = uptime-kuma-login # Naam van je custom filter definitie
+# logpath = /opt/uptime-kuma/data/debug.log # Pas aan naar de daadwerkelijke log locatie en formaat
+# maxretry = 5
+# findtime = 600
+# bantime = 3600 

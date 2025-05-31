@@ -1,0 +1,41 @@
+---
+- name: Ensure .ssh directory exists for root
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Add specified public SSH key to root's authorized_keys
+  ansible.builtin.lineinfile:
+    path: /root/.ssh/authorized_keys
+    line: "{{ root_ssh_public_key }}"
+    create: yes
+    owner: root
+    group: root
+    mode: "0600"
+    validate: ssh-keygen -l -f %s # Controleer of de key geldig is
+  when: >
+    root_ssh_public_key is defined and
+    root_ssh_public_key != "" and
+    root_ssh_public_key != "VOEG_HIER_UW_PUBLIEKE_SSH_SLEUTEL_IN_inventory_group_vars_all_yml"
+  notify: restart sshd
+
+- name: Configure SSH daemon for root access
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: PermitRootLogin prohibit-password
+    validate: /usr/sbin/sshd -t -f %s
+  when: >
+    root_ssh_public_key is defined and
+    root_ssh_public_key != "" and
+    root_ssh_public_key != "VOEG_HIER_UW_PUBLIEKE_SSH_SLEUTEL_IN_inventory_group_vars_all_yml"
+  notify: restart sshd
+
+- name: Ensure SSH daemon is enabled and started
+  ansible.builtin.service:
+    name: sshd
+    enabled: true
+    state: started

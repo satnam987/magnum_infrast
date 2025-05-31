@@ -1,0 +1,33 @@
+---
+# Docker configuration
+docker_compose_version: "2.17.2"
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-compose-plugin
+
+# Uptime Kuma configuration
+uptime_kuma_version: "latest"
+uptime_kuma_port: 3001
+uptime_kuma_container_name: "uptime-kuma"
+uptime_kuma_data_dir: "/opt/uptime-kuma"
+
+# SSL/TLS Configuration
+enable_ssl: false  # Default to false for local development
+ssl_email: ""      # Required if enable_ssl is true
+ssl_staging: true  # Use staging environment by default to avoid rate limits
+
+# Firewall ports
+firewall_allowed_ports:
+  - "80/tcp"    # HTTP
+  - "443/tcp"   # HTTPS
+  - "3001/tcp"  # Uptime Kuma (if not using reverse proxy)
+
+# System configuration
+timezone: "UTC"
+
+# Backup configuration
+enable_backups: true
+backup_dir: /opt/uptime-kuma/backups
+backup_retention_days: 7 

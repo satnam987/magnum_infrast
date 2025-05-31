@@ -1,0 +1,178 @@
+---
+# inventory/group_vars/all.yml
+
+# ==============================================================================
+# Systeem Algemene Instellingen
+# ==============================================================================
+# hostname: De gewenste hostnaam voor de machine.
+# Wordt gebruikt door de 'system' rol om de systeeminformatie te configureren.
+hostname: "localhost" # Voor lokale test, pas aan voor productie.
+
+# timezone: De tijdzone die ingesteld moet worden op de server.
+# Een lijst van geldige tijdzones kan gevonden worden met 'timedatectl list-timezones'.
+timezone: "Europe/Brussels"
+
+# enable_selinux: Bepaalt of SELinux ingeschakeld (true) of uitgeschakeld (false) moet zijn.
+# Het wordt sterk aangeraden om SELinux ingeschakeld te laten voor beveiliging.
+enable_selinux: true
+
+# ==============================================================================
+# Docker Installatie & Configuratie
+# ==============================================================================
+# docker_compose_version: De specifieke versie van Docker Compose die geïnstalleerd moet worden.
+# Controleer de Docker Compose releases pagina voor de laatste stabiele versie.
+docker_compose_version: "2.17.2"
+
+# docker_users: Een lijst van gebruikers die toegevoegd moeten worden aan de 'docker' groep.
+# Gebruikers in deze groep kunnen Docker commando's uitvoeren zonder 'sudo'.
+# "{{ ansible_user }}" voegt de gebruiker toe waarmee Ansible de playbook uitvoert.
+docker_users:
+  - "{{ ansible_user }}"
+
+# docker_install_compose: Of Docker Compose geïnstalleerd moet worden.
+# Standaard true, aangezien Uptime Kuma via Docker Compose draait.
+docker_install_compose: true
+
+# ==============================================================================
+# Uptime Kuma Applicatie Configuratie
+# ==============================================================================
+# uptime_kuma_version: De versie tag van de Uptime Kuma Docker image.
+# "latest" gebruikt de meest recente versie. Specifieke versies (bv. "1.23.0") kunnen ook gebruikt worden.
+uptime_kuma_version: "latest"
+
+# uptime_kuma_port: De poort waarop Uptime Kuma extern bereikbaar zal zijn.
+# Dit is de poort die gebruikt wordt in de browser (bv. http://<server_ip>:{{ uptime_kuma_port }}).
+# Intern draait de Uptime Kuma container op poort 3001.
+uptime_kuma_port: 3001
+
+# uptime_kuma_container_name: De naam die aan de Uptime Kuma Docker container gegeven wordt.
+uptime_kuma_container_name: "uptime-kuma"
+
+# uptime_kuma_data_dir: De map op de host server waar Uptime Kuma zijn persistente data opslaat.
+# Zorg ervoor dat deze map bestaat en de juiste permissies heeft, of laat Docker deze aanmaken.
+uptime_kuma_data_dir: "/opt/uptime-kuma"
+
+# ==============================================================================
+# SSL/TLS Certificaat Configuratie (met Certbot & Nginx)
+# ==============================================================================
+# enable_ssl: Schakelt de SSL-configuratie in (true) of uit (false).
+# Indien true, zal Nginx geconfigureerd worden als reverse proxy met SSL.
+# LET OP: Vereist een publiek IP-adres en een correct geconfigureerde DNS A-record
+# voor het domein naar dit IP voor Let's Encrypt validatie.
+enable_ssl: false # Standaard uitgeschakeld, zeker voor lokale setup.
+
+# ssl_domain: Het domein (of subdomein) waarvoor het SSL certificaat aangevraagd wordt.
+# Bijvoorbeeld: "status.jouwdomein.nl". VERVANG DIT!
+ssl_domain: "jouwdomein.example.com"
+
+# ssl_email: Het e-mailadres dat gebruikt wordt voor de registratie bij Let's Encrypt.
+# Dit wordt gebruikt voor belangrijke notificaties, zoals het verlopen van certificaten. VERVANG DIT!
+ssl_email: "your.email@example.com"
+
+# ssl_staging: Bepaalt of de Let's Encrypt staging server (true) of productie server (false) gebruikt wordt.
+# Gebruik 'true' tijdens het testen om rate limits van de productie server te vermijden.
+# Zet op 'false' voor een echt, vertrouwd certificaat.
+ssl_staging: true
+
+# ssl_renewal_frequency: Hoe vaak Certbot moet proberen het certificaat te vernieuwen.
+# Geldige waarden zijn bijvoorbeeld: "daily", "weekly", "monthly".
+# Certbot vernieuwt standaard alleen als het certificaat binnen 30 dagen verloopt.
+ssl_renewal_frequency: "daily" # Cronjob frequentie, niet de daadwerkelijke vernieuwing.
+
+# nginx_conf_dir: De map waar Nginx zijn site-specifieke configuratiebestanden laadt.
+# Meestal /etc/nginx/conf.d/ of /etc/nginx/sites-available/.
+nginx_conf_dir: /etc/nginx/conf.d
+
+# nginx_ssl_conf_name: De bestandsnaam voor de Nginx SSL configuratie voor Uptime Kuma.
+# Dit bestand wordt aangemaakt in 'nginx_conf_dir'.
+nginx_ssl_conf_name: uptime_kuma_ssl.conf
+
+# ==============================================================================
+# Firewall Configuratie (firewalld)
+# ==============================================================================
+# firewall_default_policy: Het standaardbeleid voor inkomend verkeer als geen regel matcht.
+# "DROP" (aanbevolen) weigert stilzwijgend, "REJECT" stuurt een foutmelding terug.
+firewall_default_policy: "DROP"
+
+# firewall_allowed_ports: Een lijst van poorten die geopend moeten worden in de firewall.
+# Elk item is een dictionary met 'port', 'protocol' (tcp/udp), en een optionele 'comment'.
+firewall_allowed_ports:
+  - port: 22 # Essentieel voor SSH toegang.
+    protocol: tcp
+    comment: "SSH access"
+  - port: "{{ uptime_kuma_port }}" # Poort voor Uptime Kuma (HTTP, zonder SSL).
+    protocol: tcp
+    comment: "Uptime Kuma web interface (HTTP)"
+  - port: 80 # Nodig voor HTTP verkeer, o.a. Let's Encrypt validatie (http-01 challenge).
+    protocol: tcp
+    comment: "HTTP traffic (Let's Encrypt & redirect to HTTPS)"
+  - port: 443 # Nodig voor HTTPS verkeer als SSL ingeschakeld is.
+    protocol: tcp
+    comment: "HTTPS traffic (Uptime Kuma with SSL)"
+
+# ==============================================================================
+# Backup Configuratie (Optioneel, nog niet geïmplementeerd in rollen)
+# ==============================================================================
+# enable_backups: Schakelt automatische backups in (true) of uit (false).
+# Deze functionaliteit is nog niet volledig uitgewerkt in de rollen.
+enable_backups: true # Zet op false als je dit (nog) niet gebruikt.
+
+# backup_retention_days: Het aantal dagen dat backups bewaard moeten blijven.
+backup_retention_days: 7
+
+# backup_dir: De map op de host server waar backups worden opgeslagen.
+backup_dir: "/opt/backups/uptime-kuma"
+
+# ==============================================================================
+# Security Hardening: Fail2Ban (Optioneel)
+# ==============================================================================
+# enable_fail2ban: Bepaalt of Fail2Ban geïnstalleerd en geconfigureerd moet worden.
+# Standaard ingeschakeld voor extra beveiliging.
+fail2ban_enable: true
+
+# fail2ban_bantime: De tijd in seconden dat een IP-adres verbannen wordt.
+# 600 seconden = 10 minuten.
+fail2ban_bantime: "600"
+
+# fail2ban_findtime: De tijd in seconden waarbinnen een IP-adres het maxretry aantal pogingen mag doen.
+# 600 seconden = 10 minuten.
+fail2ban_findtime: "600"
+
+# fail2ban_maxretry: Het aantal mislukte pogingen voordat een IP-adres verbannen wordt.
+fail2ban_maxretry: "5"
+
+# ==============================================================================
+# Monitoring Configuratie (Optioneel, placeholder)
+# ==============================================================================
+# enable_monitoring: Schakelt monitoring tools in (true) of uit (false).
+# Dit is een placeholder; specifieke monitoring is nog niet geïmplementeerd.
+enable_monitoring: false
+
+# monitoring_email: E-mailadres voor het ontvangen van monitoring alerts.
+monitoring_email: "your.email@example.com"
+
+# ==============================================================================
+# Logging Configuratie (Optioneel, placeholder)
+# ==============================================================================
+# enable_remote_logging: Schakelt het doorsturen van logs naar een externe syslog server in.
+enable_remote_logging: false
+
+# syslog_server: Het IP-adres of de hostnaam van de externe syslog server.
+# Alleen relevant als 'enable_remote_logging' op true staat.
+syslog_server: ""
+
+# log_retention_days: Het aantal dagen dat lokale logs bewaard moeten blijven (indien logrotatie is geconfigureerd).
+# Dit is een placeholder; specifieke logrotatie is nog niet geïmplementeerd.
+log_retention_days: 30
+
+# ==============================================================================
+# SSH Root Toegang Configuratie
+# ==============================================================================
+# root_ssh_public_key: De publieke SSH-sleutel die toegang krijgt tot het root-account.
+# Vervang de placeholder met je daadwerkelijke publieke SSH-sleutel (bijv. van ~/.ssh/id_rsa.pub).
+# Als je geen SSH keypair hebt, genereer er dan een met 'ssh-keygen -t rsa -b 4096'.
+# Voorbeeld: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... user@host"
+# BELANGRIJK: Zorg ervoor dat deze sleutel correct is om te voorkomen dat je jezelf buitensluit.
+# De playbook zal proberen de SSH-server te configureren om root login met wachtwoord uit te schakelen
+# als deze sleutel is ingesteld en geldig lijkt.
+root_ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMZsliPQlKf/C/kzNahJ8l1K3eFizL2iJWUZDq0xn7XpRVqL3wqRbme9fuFzRolnlD3eHfEiywrHr2Ce0Nqz/jjjRs7Ywx9JLjlls7/Du5DTe1tyUgiZcZQDfvjYwWhxpHphFZ/ihcwwby225A8yabTu24+j3Myfh2AkvJbDx/wZJpVZ+hy9jDmdgW86T+JY6kyENc7dPQb9kNvRI6peKFdK5d0zWKmrSMKvFxa2AVYK8oIN9RvYc1KqysslvRDSLPwEj3gK1IaN5nrBgcBd7vbdJf+r7WA8GQmtjginYugHJKwRVLPe2reufPDx8y2MTWBWwQYKa15D/Ri+oUq+Rplk6E7fP29Hz0o8Oa5R+qelLzxfjMlw2ndsiv2NwWml2zT4PjJKjvWFJqmCiDIQeiOu9xaMDrwXxtSYagQAe2nhBu1VS4nXfQTDhOAngi+DMnYfhQMiC+XFJ81R53rSVJmnmW2RnRMExW4kG/opdBWD2h+zvmD1H6ZMv386MdxJM= User@LAPTOP-J8883M4O"

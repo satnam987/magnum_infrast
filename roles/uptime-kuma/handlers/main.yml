@@ -1,0 +1,62 @@
+---
+# Handlers for various services
+
+- name: restart uptime-kuma
+  systemd:
+    name: uptime-kuma
+    state: restarted
+    daemon_reload: yes
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: restart docker
+  systemd:
+    name: docker
+    state: restarted
+
+- name: reload firewall
+  systemd:
+    name: firewalld
+    state: reloaded
+
+- name: reload sysctl
+  command: sysctl -p
+  listen: "reload sysctl"
+
+- name: restart fail2ban
+  systemd:
+    name: fail2ban
+    state: restarted
+
+- name: restart auditd
+  systemd:
+    name: auditd
+    state: restarted
+
+- name: restart chronyd
+  systemd:
+    name: chronyd
+    state: restarted
+
+- name: restart rsyslog
+  systemd:
+    name: rsyslog
+    state: restarted
+
+# Nieuwe handlers voor Nginx
+- name: reload nginx
+  systemd:
+    name: nginx
+    state: reloaded
+
+- name: restart nginx
+  systemd:
+    name: nginx
+    state: restarted
+
+- name: restart sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted

@@ -1,0 +1,31 @@
+# {{ ansible_managed }}
+server {
+    listen 80;
+    server_name {{ ssl_domain }};
+
+    # Tijdelijke locatie voor Let's Encrypt ACME challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/html; # Zorg dat deze map bestaat en Nginx er mag lezen
+        allow all;
+    }
+
+    # Voor alle andere requests, redirect naar HTTPS ZODRA SSL geconfigureerd is.
+    # Voor nu, als fallback of tijdens de challenge, kunnen we naar Uptime Kuma HTTP proxyen
+    # of een placeholder pagina tonen.
+    # Certbot --nginx --redirect zal dit hopelijk correct aanpassen.
+    location / {
+        # Als je wilt dat Uptime Kuma tijdelijk op HTTP bereikbaar is voor de setup:
+        # proxy_pass http://localhost:{{ uptime_kuma_port }};
+        # proxy_set_header Host $host;
+        # proxy_set_header X-Real-IP $remote_addr;
+        # proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # proxy_set_header X-Forwarded-Proto $scheme;
+        # proxy_http_version 1.1;
+        # proxy_set_header Upgrade $http_upgrade;
+        # proxy_set_header Connection "upgrade";
+
+        # Of een simpele return om aan te geven dat SSL wordt opgezet:
+        return 200 "SSL setup in progress for {{ ssl_domain }}. Please try HTTPS shortly.";
+        add_header Content-Type text/plain;
+    }
+} 

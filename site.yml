@@ -1,0 +1,7 @@
+---
+- name: Deploy Uptime Kuma Monitoring System
+  hosts: monitoring
+  become: true
+  
+  roles:
+    - role: uptime-kuma 

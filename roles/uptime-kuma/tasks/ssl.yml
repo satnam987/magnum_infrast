@@ -1,0 +1,142 @@
+---
+# SSL/TLS configuration tasks
+
+- name: Install certbot and dependencies
+  dnf:
+    name:
+      - certbot
+      - python3-certbot
+      - python3-certbot-nginx
+    state: present
+
+- name: Create Let's Encrypt directory
+  file:
+    path: /etc/letsencrypt
+    state: directory
+    mode: "0755"
+
+- name: Configure Let's Encrypt renewal timer
+  template:
+    src: certbot-renewal.timer.j2
+    dest: /etc/systemd/system/certbot-renewal.timer
+    mode: "0644"
+  notify: reload systemd
+
+- name: Configure Let's Encrypt renewal service
+  template:
+    src: certbot-renewal.service.j2
+    dest: /etc/systemd/system/certbot-renewal.service
+    mode: "0644"
+  notify: reload systemd
+
+- name: Start and enable Let's Encrypt renewal timer
+  systemd:
+    name: certbot-renewal.timer
+    state: started
+    enabled: yes
+
+- name: Check if certificate already exists
+  stat:
+    path: "/etc/letsencrypt/live/{{ hostname }}/fullchain.pem"
+  register: cert_file
+
+- name: Request Let's Encrypt certificate
+  command: >
+    certbot certonly --standalone
+    --non-interactive
+    --agree-tos
+    --email {{ ssl_email }}
+    -d {{ hostname }}
+    {% if ssl_staging | bool %}--staging{% endif %}
+    --pre-hook "systemctl stop nginx"
+    --post-hook "systemctl start nginx"
+  when: not cert_file.stat.exists
+
+- name: Configure automatic certificate renewal
+  cron:
+    name: "Let's Encrypt renewal"
+    special_time: daily
+    job: "certbot renew --quiet --pre-hook 'systemctl stop nginx' --post-hook 'systemctl start nginx'"
+    user: root
+
+- name: Create SSL directory for Uptime Kuma
+  file:
+    path: "{{ uptime_kuma_data_dir }}/ssl"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+
+- name: Copy SSL certificates to Uptime Kuma directory
+  copy:
+    src: "/etc/letsencrypt/live/{{ hostname }}/{{ item.src }}"
+    dest: "{{ uptime_kuma_data_dir }}/ssl/{{ item.dest }}"
+    remote_src: yes
+    mode: "0640"
+    owner: root
+    group: docker
+  with_items:
+    - { src: "fullchain.pem", dest: "cert.pem" }
+    - { src: "privkey.pem", dest: "key.pem" }
+  when: cert_file.stat.exists
+  notify: restart uptime-kuma
+
+- name: Install Nginx and Certbot with Nginx plugin
+  dnf:
+    name:
+      - nginx
+      - certbot
+      - python3-certbot-nginx
+    state: present
+  when: enable_ssl | bool
+
+- name: Create Nginx config for Uptime Kuma (HTTP for initial challenge)
+  template:
+    src: nginx_uptime_kuma_http.conf.j2
+    dest: "{{ nginx_conf_dir }}/{{ uptime_kuma_container_name }}.conf"
+    mode: "0644"
+  notify: reload nginx
+  when: enable_ssl | bool
+
+- name: Ensure Nginx is started and enabled
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
+  when: enable_ssl | bool
+
+  # notify: reload nginx # Notifying after start might be too soon for certbot, certbot reloads/restarts.
+- name: Obtain SSL certificate from Let's Encrypt using Certbot
+  command: >-
+    certbot --nginx -d {{ ssl_domain }} --email {{ ssl_email }}
+    --agree-tos --non-interactive --redirect
+    {% if ssl_staging %}--staging{% endif %}
+  args:
+    creates: /etc/letsencrypt/live/{{ ssl_domain }}/fullchain.pem
+  when: enable_ssl | bool
+  notify: reload nginx # Nginx config is likely changed by certbot
+
+# De volgende taak om de SSL config te templateten is optioneel als certbot --nginx --redirect het goed doet.
+# Als je volledige controle wilt, gebruik certbot --certonly en beheer de Nginx SSL config volledig met de template.
+- name: Configure Nginx for SSL (HTTPS) - This might be redundant if certbot --nginx --redirect works well
+  template:
+    src: nginx_uptime_kuma_ssl.conf.j2
+    dest: "{{ nginx_conf_dir }}/{{ nginx_ssl_conf_name }}" # Gebruikt andere naam, of overschrijf de door certbot aangepaste file
+    mode: "0644"
+  notify: reload nginx
+  when: enable_ssl | bool
+
+- name: Set up Certbot auto-renewal
+  cron:
+    name: "Certbot automatic renewal"
+    minute: "0"
+    hour: "2"
+    job: "/usr/bin/certbot renew --quiet --post-hook 'systemctl reload nginx'"
+    state: present
+  when: enable_ssl | bool
+
+- name: Ensure Nginx is reloaded to apply SSL configuration
+  systemd:
+    name: nginx
+    state: reloaded # reloaded is beter dan restarted indien mogelijk
+  when: enable_ssl | bool

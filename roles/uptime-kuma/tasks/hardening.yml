@@ -1,0 +1,81 @@
+---
+# Security hardening tasks
+
+- name: Configure SELinux
+  selinux:
+    policy: targeted
+    state: enforcing
+  when: enable_selinux | bool
+
+- name: Install security packages
+  dnf:
+    name:
+      - fail2ban
+      - aide
+      - rkhunter
+      - audit
+    state: present
+
+- name: Configure fail2ban
+  template:
+    src: fail2ban/jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: '0644'
+  notify: restart fail2ban
+
+- name: Start and enable fail2ban
+  systemd:
+    name: fail2ban
+    state: started
+    enabled: yes
+  when: fail2ban_enable | bool
+
+- name: Configure password policies
+  lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+    - { regexp: '^minlen', line: 'minlen = 12' }
+    - { regexp: '^dcredit', line: 'dcredit = -1' }
+    - { regexp: '^ucredit', line: 'ucredit = -1' }
+    - { regexp: '^lcredit', line: 'lcredit = -1' }
+    - { regexp: '^ocredit', line: 'ocredit = -1' }
+
+- name: Configure system limits
+  template:
+    src: limits.conf.j2
+    dest: /etc/security/limits.d/hardening.conf
+    mode: '0644'
+
+- name: Configure sysctl hardening
+  template:
+    src: sysctl-hardening.conf.j2
+    dest: /etc/sysctl.d/99-hardening.conf
+    mode: '0644'
+  notify: reload sysctl
+
+- name: Configure audit rules
+  template:
+    src: audit.rules.j2
+    dest: /etc/audit/rules.d/hardening.rules
+    mode: '0600'
+  notify: restart auditd
+
+- name: Configure AIDE
+  block:
+    - name: Initialize AIDE database
+      command: aide --init
+      args:
+        creates: /var/lib/aide/aide.db.new
+      
+    - name: Copy new database
+      command: cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+      args:
+        creates: /var/lib/aide/aide.db
+
+- name: Configure daily security scans
+  template:
+    src: security-scan.sh.j2
+    dest: /etc/cron.daily/security-scan
+    mode: '0755' 

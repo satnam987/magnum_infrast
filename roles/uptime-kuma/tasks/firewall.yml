@@ -1,0 +1,130 @@
+---
+# Firewall configuration tasks
+
+- name: Install firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Start and enable firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: yes
+
+- name: Get current default zone
+  ansible.builtin.command:
+    cmd: sudo firewall-cmd --get-default-zone
+  register: get_default_zone_result
+  changed_when: false
+  check_mode: false # Ensure this task runs even in check mode
+
+- name: Display current default zone
+  ansible.builtin.debug:
+    var: get_default_zone_result.stdout
+    verbosity: 1 # Show this output when playbook runs with -v
+
+- name: Set default zone to public only if it is not already public
+  ansible.builtin.command:
+    argv:
+      - sudo # Ensure sudo is used here as well
+      - firewall-cmd
+      - --permanent
+      - --set-default-zone=public
+  when: get_default_zone_result.stdout | trim != "public"
+  register: set_default_zone_cmd_result
+  changed_when: "set_default_zone_cmd_result.rc == 0 and (set_default_zone_cmd_result.stdout is defined and 'success' in set_default_zone_cmd_result.stdout)"
+  failed_when: >
+    set_default_zone_cmd_result.rc != 0 and
+    not (
+      ('already set' in set_default_zone_cmd_result.stderr or 'is already the default zone' in set_default_zone_cmd_result.stdout) or
+      ('ALREADY_SET' in set_default_zone_cmd_result.stderr) or 
+      (get_default_zone_result.stdout | trim == "public") 
+    )
+  notify: reload firewall
+
+- name: Set default policies
+  ansible.posix.firewalld:
+    zone: public
+    target: "{{ firewall_default_policy }}"
+    permanent: yes
+    state: enabled
+  notify: reload firewall
+
+- name: Configure LogDenied in firewalld.conf
+  ansible.builtin.lineinfile:
+    path: /etc/firewalld/firewalld.conf
+    regexp: "^#?LogDenied="
+    line: LogDenied=all
+    owner: root
+    group: root
+    mode: "0640"
+  notify: reload firewall
+
+- name: Configure allowed ports
+  ansible.posix.firewalld:
+    port: "{{ item.port }}/{{ item.protocol }}"
+    permanent: yes
+    state: enabled
+    zone: public
+  with_items: "{{ firewall_allowed_ports }}"
+  notify: reload firewall
+  loop_control:
+    label: "{{ item.port }}/{{ item.protocol }} ({{ item.comment }})"
+
+- name: Allow HTTP port for SSL challenge / redirect
+  ansible.posix.firewalld:
+    port: "80/tcp"
+    permanent: yes
+    state: enabled
+    zone: public
+  when: enable_ssl | bool
+  notify: reload firewall
+
+- name: Allow HTTPS port
+  ansible.posix.firewalld:
+    port: "443/tcp"
+    permanent: yes
+    state: enabled
+    zone: public
+  when: enable_ssl | bool
+  notify: reload firewall
+
+- name: Configure rate limiting for SSH
+  ansible.posix.firewalld:
+    rich_rule: 'rule service name="ssh" limit value="10/m" accept'
+    permanent: yes
+    state: enabled
+    zone: public
+  notify: reload firewall
+
+- name: Block common attack ports
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: yes
+    state: disabled
+    zone: public
+  with_items:
+    - 23/tcp # Telnet
+    - 21/tcp # FTP
+    - 161/udp # SNMP
+    - 445/tcp # SMB
+    - 137/udp # NetBIOS
+    - 138/udp # NetBIOS
+    - 139/tcp # NetBIOS
+  notify: reload firewall
+
+- name: Configure connection tracking
+  ansible.builtin.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-conntrack.conf
+    reload: yes
+    state: present
+  with_items:
+    - { key: "net.netfilter.nf_conntrack_max", value: "131072" }
+    - {
+        key: "net.netfilter.nf_conntrack_tcp_timeout_established",
+        value: "86400",
+      }
+    - { key: "net.netfilter.nf_conntrack_tcp_timeout_close_wait", value: "60" }

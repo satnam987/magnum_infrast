@@ -1,0 +1,81 @@
+---
+# Cleanup oude installatie
+- name: Stop uptime-kuma service if exists
+  systemd:
+    name: uptime-kuma
+    state: stopped
+  ignore_errors: true
+
+- name: Remove old installation directories
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /opt/uptime-kuma
+    - /etc/docker/compose/uptime-kuma
+    - /etc/systemd/system/uptime-kuma.service
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+# System updates en dependencies
+- name: Update all packages
+  dnf:
+    name: "*"
+    state: latest
+    update_cache: yes
+
+- name: Install EPEL repository
+  dnf:
+    name: epel-release
+    state: present
+
+- name: Install required system packages
+  dnf:
+    name:
+      - ansible
+      - python3-pip
+    state: present
+
+- name: Configure timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Configure hostname
+  hostname:
+    name: "{{ hostname }}"
+
+- name: Configure chrony
+  template:
+    src: chrony.conf.j2
+    dest: /etc/chrony.conf
+    mode: "0644"
+  notify: restart chronyd
+
+- name: Start and enable chronyd
+  systemd:
+    name: chronyd
+    state: started
+    enabled: yes
+
+- name: Configure logrotate
+  template:
+    src: logrotate.conf.j2
+    dest: /etc/logrotate.d/uptime-kuma
+    mode: "0644"
+
+- name: Create monitoring user
+  user:
+    name: monitoring
+    system: yes
+    create_home: no
+    shell: /sbin/nologin
+
+- name: Configure system logging
+  template:
+    src: rsyslog.conf.j2
+    dest: /etc/rsyslog.d/uptime-kuma.conf
+    mode: "0644"
+  notify: restart rsyslog
+  when: enable_remote_logging | bool
