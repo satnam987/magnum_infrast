@@ -8,8 +8,8 @@ Deze handleiding installeert Uptime Kuma door Ansible direct op de doel-VM uit t
 2.  **Project Klonen:**
     ```bash
     sudo dnf install -y git
-    git clone https://github.com/satnam987/magnum_infra.git # Jouw repo URL
-    cd magnum_infra
+    git clone https://github.com/satnam987/magnum_infrast.git
+    cd magnum_infras
     ```
 3.  **Ansible Installeren:**
     ```bash
