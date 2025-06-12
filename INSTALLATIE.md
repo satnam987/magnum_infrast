@@ -9,7 +9,7 @@ Deze handleiding installeert Uptime Kuma door Ansible direct op de doel-VM uit t
     ```bash
     sudo dnf install -y git
     git clone https://github.com/satnam987/magnum_infrast.git
-    cd magnum_infras
+    cd magnum_infrast
     ```
 3.  **Ansible Installeren:**
     ```bash
