@@ -38,6 +38,10 @@
       - python3-pip
     state: present
 
+# =====================================================================
+# SYSTEM CONFIGURATION
+# =====================================================================
+
 - name: Configure timezone
   timezone:
     name: "{{ timezone }}"
@@ -45,6 +49,10 @@
 - name: Configure hostname
   hostname:
     name: "{{ hostname }}"
+
+# =====================================================================
+# TIME SYNCHRONIZATION
+# =====================================================================
 
 - name: Configure chrony
   template:
@@ -59,11 +67,19 @@
     state: started
     enabled: yes
 
+# =====================================================================
+# LOG MANAGEMENT
+# =====================================================================
+
 - name: Configure logrotate
   template:
     src: logrotate.conf.j2
     dest: /etc/logrotate.d/uptime-kuma
     mode: "0644"
+
+# =====================================================================
+# USER MANAGEMENT
+# =====================================================================
 
 - name: Create monitoring user
   user:
@@ -71,6 +87,10 @@
     system: yes
     create_home: no
     shell: /sbin/nologin
+
+# =====================================================================
+# SYSTEM LOGGING CONFIGURATION
+# =====================================================================
 
 - name: Configure system logging
   template:
