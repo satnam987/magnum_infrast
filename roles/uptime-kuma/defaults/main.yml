@@ -1,6 +1,6 @@
 ---
 # Docker configuration
-docker_compose_version: "2.17.2"
+docker_compose_version: "v2.29.0"
 docker_packages:
   - docker-ce
   - docker-ce-cli
@@ -14,20 +14,44 @@ uptime_kuma_container_name: "uptime-kuma"
 uptime_kuma_data_dir: "/opt/uptime-kuma"
 
 # SSL/TLS Configuration
-enable_ssl: false  # Default to false for local development
-ssl_email: ""      # Required if enable_ssl is true
-ssl_staging: true  # Use staging environment by default to avoid rate limits
+enable_ssl: false # Default to false for local development
+ssl_email: "" # Required if enable_ssl is true
+ssl_staging: true # Use staging environment by default to avoid rate limits
 
 # Firewall ports
 firewall_allowed_ports:
-  - "80/tcp"    # HTTP
-  - "443/tcp"   # HTTPS
-  - "3001/tcp"  # Uptime Kuma (if not using reverse proxy)
+  - "80/tcp" # HTTP
+  - "443/tcp" # HTTPS
+  - "3001/tcp" # Uptime Kuma (if not using reverse proxy)
 
 # System configuration
-timezone: "UTC"
+timezone: "Europe/Brussels"
 
 # Backup configuration
 enable_backups: true
 backup_dir: /opt/uptime-kuma/backups
-backup_retention_days: 7 
+backup_retention_days: 7
+
+# SSL settings
+email_address: your.email@example.com
+ssl_cert_path: /etc/ssl/certs
+ssl_key_path: /etc/ssl/private
+
+# Docker settings
+docker_log_max_size: "10m"
+docker_log_max_file: "3"
+
+# Nginx settings
+nginx_client_max_body_size: 100M
+
+# Security settings
+fail2ban_findtime: 600
+fail2ban_maxretry: 3
+fail2ban_bantime: 3600
+
+# Log settings
+log_retention_days: 7
+
+# Monitor user
+monitor_user: monitoring
+monitor_group: monitoring
