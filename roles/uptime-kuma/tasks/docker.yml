@@ -5,7 +5,7 @@
   get_url:
     url: https://download.docker.com/linux/centos/docker-ce.repo
     dest: /etc/yum.repos.d/docker-ce.repo
-    mode: '0644'
+    mode: "0644"
 
 - name: Install Docker packages
   dnf:
@@ -26,7 +26,7 @@
   file:
     path: /etc/docker/compose
     state: directory
-    mode: '0755'
+    mode: "0755"
 
 - name: Create Docker group
   group:
@@ -45,13 +45,7 @@
   get_url:
     url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-linux-x86_64"
     dest: /usr/local/bin/docker-compose
-    mode: '0755'
-
-- name: Configure Docker log rotation
-  template:
-    src: docker-logrotate.conf.j2
-    dest: /etc/logrotate.d/docker
-    mode: '0644'
+    mode: "0755"
 
 - name: Check if Docker network exists
   command: docker network inspect uptime-kuma-network
@@ -61,4 +55,4 @@
 
 - name: Create Docker network for Uptime Kuma
   command: docker network create uptime-kuma-network
-  when: network_check.rc != 0 
+  when: network_check.rc != 0
