@@ -71,14 +71,14 @@
 
 - name: Wait for Uptime Kuma to be ready
   uri:
-    url: "http://localhost:{{ uptime_kuma_port }}/dashboard"
+    url: "http://localhost:{{ uptime_kuma_port }}"
     return_content: yes
-    timeout: 120
+    timeout: 30
     follow_redirects: yes
   register: result
   until: result.status == 200
-  retries: 60
-  delay: 5
+  retries: 20
+  delay: 3
 
 - name: Show installation summary
   debug:
