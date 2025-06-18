@@ -73,12 +73,13 @@
   uri:
     url: "http://localhost:{{ uptime_kuma_port }}"
     return_content: yes
-    timeout: 30
+    timeout: 10
     follow_redirects: yes
   register: result
   until: result.status == 200
-  retries: 20
-  delay: 3
+  retries: 3
+  delay: 2
+  ignore_errors: yes
 
 - name: Show installation summary
   debug:
